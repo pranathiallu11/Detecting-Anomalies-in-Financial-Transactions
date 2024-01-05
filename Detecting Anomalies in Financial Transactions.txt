@@ -1,0 +1,392 @@
+#Basic libraries
+import pandas as pd
+import numpy as np
+
+#Visualization libraries
+import seaborn as sns
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.offline import plot, iplot, init_notebook_mode
+init_notebook_mode(connected=True)
+%matplotlib inline
+
+#preprocessing libraries
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+#ML libraries
+import tensorflow as tf
+from sklearn.svm import SVC
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import ExtraTreesClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
+from sklearn.pipeline import Pipeline
+
+#Metrics Libraries
+from sklearn import metrics
+from sklearn.metrics import classification_report
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+
+
+
+#Misc libraries
+import warnings
+warnings.filterwarnings("ignore")
+
+# > Here we just import the first 50000 rows since the dataset is huge and would take a long time to process. Let's see the overview of data
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:14.366244Z","iopub.execute_input":"2024-01-04T14:14:14.366650Z","iopub.status.idle":"2024-01-04T14:14:37.822487Z","shell.execute_reply.started":"2024-01-04T14:14:14.366613Z","shell.execute_reply":"2024-01-04T14:14:37.821170Z"}}
+#Reading the data
+paysim=pd.read_csv('/content/PS_20174392719_1491204439457_log[1].csv')
+
+#Looking at the data
+paysim.head()
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:37.824699Z","iopub.execute_input":"2024-01-04T14:14:37.825070Z","iopub.status.idle":"2024-01-04T14:14:37.849900Z","shell.execute_reply.started":"2024-01-04T14:14:37.825035Z","shell.execute_reply":"2024-01-04T14:14:37.848443Z"}}
+paysim.info()
+
+# %% [markdown]
+# ### Dataset description
+# >1. step - maps a unit of time in the real world. In this case 1 step is 1 hour of time. Total steps 744 (30 days simulation).
+# 2. type - CASH-IN, CASH-OUT, DEBIT, PAYMENT and TRANSFER.
+# 3. amount - amount of the transaction in local currency.
+# 4. nameOrig - customer who started the transaction
+# 5. oldbalanceOrg - initial balance before the transaction
+# 6. newbalanceOrig - new balance after the transaction
+# 7. nameDest - customer who is the recipient of the transaction
+# 8. oldbalanceDest - initial balance recipient before the transaction. Note that there is not information for customers that start with M (Merchants).
+# 9. newbalanceDest - new balance recipient after the transaction. Note that there is not information for customers that start with M (Merchants).
+# 10. isFraud - This is the transactions made by the fraudulent agents inside the simulation. In this specific dataset the fraudulent behavior of the agents aims to profit by taking control or customers accounts and try to empty the funds by transferring to another account and then cashing out of the system.
+# 11. isFlaggedFraud - The business model aims to control massive transfers from one account to another and flags illegal attempts. An illegal attempt in this dataset is an attempt to transfer more than 200.000 in a single transaction.
+# >  Numbers is everything in transaction monitoring. Numbers decide whether it is a fraudulent activity or not. Let us look at the overall numbers using pivot function
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:37.851821Z","iopub.execute_input":"2024-01-04T14:14:37.852194Z","iopub.status.idle":"2024-01-04T14:14:43.183276Z","shell.execute_reply.started":"2024-01-04T14:14:37.852160Z","shell.execute_reply":"2024-01-04T14:14:43.182149Z"}}
+#Pivot table
+paysim_pivot2=pd.pivot_table(paysim,index=["type"],
+                               values=['amount','oldbalanceOrg','newbalanceOrig'],
+                               aggfunc=[np.sum], margins=True)
+
+#Adding style
+paysim_pivot2.style\
+    .format('{:.2f}')\
+    .bar(align='mid',color=['darkred'])\
+    .set_properties(padding='5px',border='3px solid white',width='200px')
+
+
+#Adding color gradient 
+cm = sns.light_palette("green", as_cmap=True)
+paysim_pivot1.style.background_gradient(cmap=cm)
+
+
+# As per the current rule based algorithm, there has been no flags during fraud transactions incase of cash_out , which a serious concern to the anti money laundering system . Also there are only 16 transactions which are flagged as fraud whereas around 4k transactions are actually fraud. Our mission is now to build an efficient algorithm to mitigate this risk of letting fraud transactions unblocked<br>
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:43.185059Z","iopub.execute_input":"2024-01-04T14:14:43.185493Z","iopub.status.idle":"2024-01-04T14:14:45.538197Z","shell.execute_reply.started":"2024-01-04T14:14:43.185447Z","shell.execute_reply":"2024-01-04T14:14:45.536822Z"}}
+#Pivot table
+paysim_pivot2=pd.pivot_table(paysim,index=["type"],
+                               values=['amount','oldbalanceOrg','newbalanceOrig'],
+                               aggfunc=[np.sum], margins=True)
+
+#Adding style
+paysim_pivot2.style\
+    .format('{:.2f}')\
+    .bar(align='mid',color=['darkred'])\
+    .set_properties(padding='5px',border='3px solid white',width='200px')
+# From the table we can understand that most of the customers use the system for transfering money and we have a relatively less data for payments made. Also it is quite interesting to notice the difference between the new and old balance as it tells us some stories. Here we have only the visuals of Orgin account and cash balance have reduced in all cases except cash_in . Even in transfer the balance have reduced which shows that we have more sender information in Original account<br>
+# <br>   
+# </div>
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:45.539898Z","iopub.execute_input":"2024-01-04T14:14:45.540287Z","iopub.status.idle":"2024-01-04T14:14:47.966470Z","shell.execute_reply.started":"2024-01-04T14:14:45.540249Z","shell.execute_reply":"2024-01-04T14:14:47.965048Z"}}
+#Pivot table
+paysim_pivot3=pd.pivot_table(paysim,index=["type"],
+                               values=['amount','oldbalanceDest','newbalanceDest'],
+                               aggfunc=[np.sum], margins=True)
+
+#Adding style
+paysim_pivot3.style\
+    .format('{:.2f}')\
+    .bar(align='mid',color=['darkblue'])\
+    .set_properties(padding='5px',border='3px solid white',width='200px')
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:47.968170Z","iopub.execute_input":"2024-01-04T14:14:47.968554Z","iopub.status.idle":"2024-01-04T14:14:50.039510Z","shell.execute_reply.started":"2024-01-04T14:14:47.968504Z","shell.execute_reply":"2024-01-04T14:14:50.037704Z"}}
+#Reading the first 50000 rows
+paysim=pd.read_csv('../input/paysim1/PS_20174392719_1491204439457_log.csv',nrows=50000)
+
+#Distribution of Amount
+fig = px.box(paysim, y="amount")
+fig.show()
+
+# %% [markdown]
+# # 🔧 Feature engineering 
+# >  Time to get our hands dirty with feature engineering. With the available information it is hard to train the model and get better results. Hence we move onto create new features by altering the existing features. In this we create three functions which creates a highly relevant feature for the domain
+# >
+# > 1. **Difference in balance:** It is an universal truth that the amount debited from senders account gets credited into the receivers account without any deviation in cents. But what if there is a deviation incase of the amount debited and credited. Some could be due to the charges levied by the service providers, yet we need to flag such unusual instances
+# > 2. **Surge indicator:** Also we have to trigger flag when large amount are involved in the transaction. From the distribution of amount we understood that we have a lot of outliers with high amount in transactions. Hence we consider the 75th percentile(450k) as our threshold and amount which is greater than 450k will be triggered as a flag
+# > 3. **Frequency indicator:** Here we flag the user and not the transaction. When there is a receiver who receives money from a lot of people, it could be a trigger as it can be for some illegal games of chance or luck. Hence it is flagged when there is a receiver who receives money for more than 20 times.
+# >4. **Merchant indicator:** The customer ids in receiver starts with 'M' which means that they are merchants and they obviously will have a lot of receiving transactions. So we also flag whenever there is a merchant receiver
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:50.042977Z","iopub.execute_input":"2024-01-04T14:14:50.043441Z","iopub.status.idle":"2024-01-04T14:14:50.066100Z","shell.execute_reply.started":"2024-01-04T14:14:50.043396Z","shell.execute_reply":"2024-01-04T14:14:50.064705Z"}}
+#Tallying the balance
+def balance_diff(data):
+    '''balance_diff checks whether the money debited from sender has exactly credited to the receiver
+       then it creates a new column which indicates 1 when there is a deviation else 0'''
+    #Sender's balance
+    orig_change=data['newbalanceOrig']-data['oldbalanceOrg']
+    orig_change=orig_change.astype(int)
+    for i in orig_change:
+        if i<0:
+            data['orig_txn_diff']=round(data['amount']+orig_change,2)
+        else:
+            data['orig_txn_diff']=round(data['amount']-orig_change,2)
+    data['orig_txn_diff']=data['orig_txn_diff'].astype(int)
+    data['orig_diff'] = [1 if n !=0 else 0 for n in data['orig_txn_diff']] 
+    
+    #Receiver's balance
+    dest_change=data['newbalanceDest']-data['oldbalanceDest']
+    dest_change=dest_change.astype(int)
+    for i in dest_change:
+        if i<0:
+            data['dest_txn_diff']=round(data['amount']+dest_change,2)
+        else:
+            data['dest_txn_diff']=round(data['amount']-dest_change,2)
+    data['dest_txn_diff']=data['dest_txn_diff'].astype(int)
+    data['dest_diff'] = [1 if n !=0 else 0 for n in data['dest_txn_diff']] 
+    
+    data.drop(['orig_txn_diff','dest_txn_diff'],axis=1,inplace = True)
+    
+#Surge indicator
+def surge_indicator(data):
+    '''Creates a new column which has 1 if the transaction amount is greater than the threshold
+    else it will be 0'''
+    data['surge']=[1 if n>450000 else 0 for n in data['amount']]
+
+#Frequency indicator
+def frequency_receiver(data):
+    '''Creates a new column which has 1 if the receiver receives money from many individuals
+    else it will be 0'''
+    data['freq_Dest']=data['nameDest'].map(data['nameDest'].value_counts())
+    data['freq_dest']=[1 if n>20 else 0 for n in data['freq_Dest']]
+    
+    data.drop(['freq_Dest'],axis=1,inplace = True)
+
+#Tracking the receiver as merchant or not
+def merchant(data):
+    '''We also have customer ids which starts with M in Receiver name, it indicates merchant
+    this function will flag if there is a merchant in receiver end '''
+    values = ['M']
+    conditions = list(map(data['nameDest'].str.contains, values))
+    data['merchant'] = np.select(conditions, '1', '0')
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:14:50.069407Z","iopub.execute_input":"2024-01-04T14:14:50.070301Z","iopub.status.idle":"2024-01-04T14:16:48.255668Z","shell.execute_reply.started":"2024-01-04T14:14:50.070231Z","shell.execute_reply":"2024-01-04T14:16:48.254578Z"}}
+#Applying balance_diff function
+balance_diff(paysim)
+
+paysim['orig_diff'].value_counts()
+paysim['dest_diff'].value_counts()
+
+#  [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.257370Z","iopub.execute_input":"2024-01-04T14:16:48.258115Z","iopub.status.idle":"2024-01-04T14:16:48.308493Z","shell.execute_reply.started":"2024-01-04T14:16:48.258058Z","shell.execute_reply":"2024-01-04T14:16:48.307110Z"}}
+#Applying surge_indicator function
+surge_indicator(paysim)
+paysim['surge'].value_counts()
+
+#  [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.310367Z","iopub.execute_input":"2024-01-04T14:16:48.310764Z","iopub.status.idle":"2024-01-04T14:16:48.422355Z","shell.execute_reply.started":"2024-01-04T14:16:48.310728Z","shell.execute_reply":"2024-01-04T14:16:48.421029Z"}}
+#Applying frequency_receiver function
+frequency_receiver(paysim)
+paysim['freq_dest'].value_counts()
+
+# # ⚙️ Pre-processing data
+# >  Before moving to build a machine learning model, it is mandatory to pre-process the data so that the model trains without any error and can learn better to provide better results
+# 
+# ## 1. Balancing the target
+# > From the pie chart below we can clearly see that the target label is heavily imbalance as we have only 0.2% of fraudulent data which is in-sufficient for machine to learn and flag when fraud transactions happen.
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.424620Z","iopub.execute_input":"2024-01-04T14:16:48.425051Z","iopub.status.idle":"2024-01-04T14:16:48.452626Z","shell.execute_reply.started":"2024-01-04T14:16:48.425015Z","shell.execute_reply":"2024-01-04T14:16:48.451152Z"}}
+#Creating a copy
+paysim_1=paysim.copy()
+
+#Checking for balance in target
+fig = go.Figure(data=[go.Pie(labels=['Not Fraud','Fraud'], values=paysim_1['isFraud'].value_counts())])
+fig.show()
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.454567Z","iopub.execute_input":"2024-01-04T14:16:48.455062Z","iopub.status.idle":"2024-01-04T14:16:48.513986Z","shell.execute_reply.started":"2024-01-04T14:16:48.455001Z","shell.execute_reply":"2024-01-04T14:16:48.512608Z"}}
+#Getting the max size
+max_size = paysim_1['isFraud'].value_counts().max()
+
+#Balancing the target label
+lst = [paysim_1]
+for class_index, group in paysim_1.groupby('isFraud'):
+    lst.append(group.sample(max_size-len(group), replace=True))
+paysim_1 = pd.concat(lst)
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.515765Z","iopub.execute_input":"2024-01-04T14:16:48.516269Z","iopub.status.idle":"2024-01-04T14:16:48.538984Z","shell.execute_reply.started":"2024-01-04T14:16:48.516216Z","shell.execute_reply":"2024-01-04T14:16:48.537197Z"}}
+#Checking the balanced target
+fig = go.Figure(data=[go.Pie(labels=['Not Fraud','Fraud'], values=paysim_1['isFraud'].value_counts())])
+fig.show()
+
+# %% [markdown]
+# ## 2. One hot encoding
+# > One of the most important feature we have is type which is categorical in type. Since it doesnt have any ordinal nature and since the classes are less, we prefer applying one hot encoding. 
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.541069Z","iopub.execute_input":"2024-01-04T14:16:48.541594Z","iopub.status.idle":"2024-01-04T14:16:48.634951Z","shell.execute_reply.started":"2024-01-04T14:16:48.541540Z","shell.execute_reply":"2024-01-04T14:16:48.633664Z"}}
+#One hot encoding
+paysim_1=pd.concat([paysim_1,pd.get_dummies(paysim_1['type'], prefix='type_')],axis=1)
+paysim_1.drop(['type'],axis=1,inplace = True)
+
+paysim_1.head()
+
+# ## 3. Split and Standardize
+# > In this module we create the independent and dependent feature, then split them into train and test data where training size is 70%. Later we collect all the numerical features and apply StandardScaler() function which transforms the distribution so that the mean becomes 0 and standard deviation becomes 1 
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.636381Z","iopub.execute_input":"2024-01-04T14:16:48.636760Z","iopub.status.idle":"2024-01-04T14:16:48.897051Z","shell.execute_reply.started":"2024-01-04T14:16:48.636726Z","shell.execute_reply":"2024-01-04T14:16:48.895754Z"}}
+#Splitting dependent and independent variable
+paysim_2=paysim_1.copy()
+X=paysim_2.drop('isFraud',axis=1)
+y=paysim_2['isFraud']
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.7, random_state=111)
+
+#Standardizing the numerical columns
+col_names=['amount','oldbalanceOrg','newbalanceOrig','oldbalanceDest','newbalanceDest']
+features_train = X_train[col_names]
+features_test = X_test[col_names]
+scaler = StandardScaler().fit(features_train.values)
+features_train = scaler.transform(features_train.values)
+features_test = scaler.transform(features_test.values)
+X_train[col_names] = features_train
+X_test[col_names] =features_test
+
+# ## 3. Tokenization
+# > We had the customer ids and merchant ids stored in object type. It is bad to apply one hot encoding in it as it can lead to more features and curse of dimensionality can incur. Hence we are applying tokenization here as it can create an unique id number which is in 'int' type for each customer id
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:48.898612Z","iopub.execute_input":"2024-01-04T14:16:48.899158Z","iopub.status.idle":"2024-01-04T14:16:54.093138Z","shell.execute_reply.started":"2024-01-04T14:16:48.899100Z","shell.execute_reply":"2024-01-04T14:16:54.091701Z"}}
+#Tokenzation of customer name to get a unique id
+tokenizer_org = tf.keras.preprocessing.text.Tokenizer()
+tokenizer_org.fit_on_texts(X_train['nameOrig'])
+
+tokenizer_dest = tf.keras.preprocessing.text.Tokenizer()
+tokenizer_dest.fit_on_texts(X_train['nameDest'])
+
+# Create tokenized customer lists
+customers_train_org = tokenizer_org.texts_to_sequences(X_train['nameOrig'])
+customers_test_org = tokenizer_org.texts_to_sequences(X_test['nameOrig'])
+
+customers_train_dest = tokenizer_dest.texts_to_sequences(X_train['nameDest'])
+customers_test_dest = tokenizer_dest.texts_to_sequences(X_test['nameDest'])
+
+
+# Pad sequences
+X_train['customers_org'] = tf.keras.preprocessing.sequence.pad_sequences(customers_train_org, maxlen=1)
+X_test['customers_org'] = tf.keras.preprocessing.sequence.pad_sequences(customers_test_org, maxlen=1)
+
+X_train['customers_dest'] = tf.keras.preprocessing.sequence.pad_sequences(customers_train_dest, maxlen=1)
+X_test['customers_dest'] = tf.keras.preprocessing.sequence.pad_sequences(customers_test_dest, maxlen=1)
+
+# ### Dropping unnecessary columns
+# > We dont need the sender and receiver id as we have tokenized them, also we dont required isFlaggedFraud as it is just an outcome of current algorithm. 
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:54.094872Z","iopub.execute_input":"2024-01-04T14:16:54.095363Z","iopub.status.idle":"2024-01-04T14:16:54.124624Z","shell.execute_reply.started":"2024-01-04T14:16:54.095313Z","shell.execute_reply":"2024-01-04T14:16:54.122985Z"}}
+#Dropping unnecessary columns
+X_train=X_train.drop(['nameOrig','nameDest','isFlaggedFraud'],axis=1)
+X_train = X_train.reset_index(drop=True)
+
+X_test=X_test.drop(['nameOrig','nameDest','isFlaggedFraud'],axis=1)
+X_test = X_test.reset_index(drop=True)
+
+#  Model Building
+# > We have successfully processed the data and it is time for serving the data to the model. It is time consuming to find out which model works best for our data. Hence I have utlized pipeline to run our data through all the classification algorithm and select the best which gives out the maximum accuracy.
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:16:54.127974Z","iopub.execute_input":"2024-01-04T14:16:54.128337Z","iopub.status.idle":"2024-01-04T14:17:40.765862Z","shell.execute_reply.started":"2024-01-04T14:16:54.128302Z","shell.execute_reply":"2024-01-04T14:17:40.764191Z"}}
+#creating the objects
+logreg_cv = LogisticRegression(solver='liblinear',random_state=123)
+dt_cv=DecisionTreeClassifier(random_state=123)
+knn_cv=KNeighborsClassifier()
+svc_cv=SVC(kernel='linear',random_state=123)
+nb_cv=GaussianNB()
+rf_cv=RandomForestClassifier(random_state=123)
+cv_dict = {0: 'Logistic Regression', 1: 'Decision Tree',2:'KNN',3:'SVC',4:'Naive Bayes',5:'Random Forest'}
+cv_models=[logreg_cv,dt_cv,knn_cv,svc_cv,nb_cv,rf_cv]
+
+
+for i,model in enumerate(cv_models):
+    print("{} Test Accuracy: {}".format(cv_dict[i],cross_val_score(model, X_train, y_train, cv=10, scoring ='accuracy').mean()))
+
+# <div class="alert alert-block alert-info">
+# <b>💭Thoughts:</b> <br>
+# We can see who won the prize-it is Naive Bayes. Other algorithms have also performed in par with NB especially Random Forest and KNN. It sure looks overfitted as the accuracy is near 100% which can be verified using the test data. Before that lets do hyperparameter tuning on NB<br>
+# <br>   
+# </div>
+
+# %% [markdown]
+# Hyperparameter Tuning
+# > Lets fit the Naive bayes model by tuning the model with its parameters. Here we are gonna tune var_smoothing which is a stability calculation to widen (or smooth) the curve and therefore account for more samples that are further away from the distribution mean. In this case, np.logspace returns numbers spaced evenly on a log scale, starts from 0, ends at -9, and generates 100 samples.
+
+
+
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:17:40.767798Z","iopub.execute_input":"2024-01-04T14:17:40.768165Z","iopub.status.idle":"2024-01-04T14:18:14.077702Z","shell.execute_reply.started":"2024-01-04T14:17:40.768130Z","shell.execute_reply":"2024-01-04T14:18:14.076339Z"}}
+param_grid_nb = {
+    'var_smoothing': np.logspace(0,-9, num=100)
+}
+
+nbModel_grid = GridSearchCV(estimator=GaussianNB(), param_grid=param_grid_nb, verbose=1, cv=10, n_jobs=-1)
+nbModel_grid.fit(X_train, y_train)
+print(nbModel_grid.best_estimator_)
+
+# %% [code] {"_kg_hide-input":true,"execution":{"iopub.status.busy":"2024-01-04T14:18:14.080191Z","iopub.execute_input":"2024-01-04T14:18:14.080890Z","iopub.status.idle":"2024-01-04T14:18:14.094196Z","shell.execute_reply.started":"2024-01-04T14:18:14.080835Z","shell.execute_reply":"2024-01-04T14:18:14.092962Z"}}
+#Function for Confusion matrix
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    thresh = cm.max() / 2.
+    for i in range (cm.shape[0]):
+        for j in range (cm.shape[1]):
+            plt.text(j, i, cm[i, j],
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:18:14.095617Z","iopub.execute_input":"2024-01-04T14:18:14.095971Z","iopub.status.idle":"2024-01-04T14:18:14.564803Z","shell.execute_reply.started":"2024-01-04T14:18:14.095936Z","shell.execute_reply":"2024-01-04T14:18:14.563611Z"}}
+#Predict with the selected best parameter
+y_pred=nbModel_grid.predict(X_test)
+
+#Plotting confusion matrix
+cm = metrics.confusion_matrix(y_test, y_pred)
+plot_confusion_matrix(cm, classes=['Not Fraud','Fraud'])
+
+# %% [code] {"execution":{"iopub.status.busy":"2024-01-04T14:18:14.569078Z","iopub.execute_input":"2024-01-04T14:18:14.569555Z","iopub.status.idle":"2024-01-04T14:18:14.651588Z","shell.execute_reply.started":"2024-01-04T14:18:14.569499Z","shell.execute_reply":"2024-01-04T14:18:14.650023Z"}}
+#Classification metrics
+print(classification_report(y_test, y_pred, target_names=['Not Fraud','Fraud']))

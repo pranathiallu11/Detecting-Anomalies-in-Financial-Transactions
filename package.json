@@ -1,0 +1,13 @@
+{
+    "name": "fraud detection",
+    "version": "1.0.0",
+    "description": "transactions frauds will be found",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.17.1"
+        // Add other dependencies as needed
+    }
+}
